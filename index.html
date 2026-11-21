@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>try{var __u=localStorage.getItem("ql-ui");if(__u!=="classic")document.documentElement.setAttribute("data-ui",/^(glass|cartoon|simple|soft|midnight)$/.test(__u)?__u:"nb")}catch(e){document.documentElement.setAttribute("data-ui","nb")}</script>
+<script>try{var __u=localStorage.getItem("ql-ui");if(__u!==null&&__u!=="classic")document.documentElement.setAttribute("data-ui",/^(glass|cartoon|simple|soft|midnight)$/.test(__u)?__u:"nb")}catch(e){}</script>
 
 <meta charset="UTF-8">
-<script>try{var __s=JSON.parse(localStorage.getItem("quicklearn-settings-v1")||"{}");if(__s.theme==="light")document.documentElement.setAttribute("data-theme","light");var __r=__s.reduceMotion;if(__r==null)__r=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;document.documentElement.setAttribute("data-motion",__r?"reduced":"full");if(__s.fps120)document.documentElement.setAttribute("data-fps","120")}catch(e){}</script>
+<script>try{var __s=JSON.parse(localStorage.getItem("quicklearn-settings-v1")||"{}");if(__s.theme==null||__s.theme==="light")document.documentElement.setAttribute("data-theme","light");var __r=__s.reduceMotion;if(__r==null)__r=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;document.documentElement.setAttribute("data-motion",__r?"reduced":"full");if(__s.fps120)document.documentElement.setAttribute("data-fps","120")}catch(e){}</script>
 <script id="ql-icons">
 /* ===== KatchUp custom icon set: loads first and watches the whole page, so emoji never paint ===== */
 (function(){
@@ -61,7 +61,7 @@ window.addEventListener("load",()=>fix(document.body));
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>KatchUp: Notes, AI Flashcards & Smart Revision</title>
 <meta name="description" content="KatchUp: turn notes into flashcards, tests and study plans in seconds.">
-<meta name="theme-color" content="#130c08" />
+<meta name="theme-color" content="#fbf5f3" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -1176,12 +1176,25 @@ try {
   quickLearnAuth = firebase.auth();
   quickLearnAuth.onAuthStateChanged(user => {
     quickLearnUser = user || null;
+    if (user) { try { qlNewUserDefaults(user); } catch (_) {} }
     const btn = document.getElementById('accountBtn');
     if (btn) btn.textContent = user ? (user.displayName ? user.displayName.split(' ')[0] : 'Account') : 'Sign in';
     try { qlSyncOnAuth(user); } catch (e) { console.error('Sync start failed:', e); }
     if (user) { try { toast('Signed in as ' + (user.email || user.displayName || 'KatchUp user')); } catch (_) {} }
   });
 } catch (e) { console.error('Firebase initialization failed:', e); }
+/* New accounts start on Classic + Light. Runs once per account (on the sign-in that created it); after that the user's own choices are saved and win. */
+function qlNewUserDefaults(user){
+  const m = user.metadata || {};
+  if (!m.creationTime || m.creationTime !== m.lastSignInTime) return;
+  if (localStorage.getItem('ql-defaults-uid') === user.uid) return;
+  localStorage.setItem('ql-defaults-uid', user.uid);
+  localStorage.setItem('ql-ui', 'classic');
+  let st = {}; try { st = JSON.parse(localStorage.getItem('quicklearn-settings-v1') || '{}') || {}; } catch (_) {}
+  st.theme = 'light'; localStorage.setItem('quicklearn-settings-v1', JSON.stringify(st));
+  try { if (typeof settings !== 'undefined' && settings) settings.theme = 'light'; applyTheme(); } catch (_) {}
+  try { setUI('classic'); } catch (_) {}
+}
 /* ============================== CLOUD SYNC (Firestore) ============================== */
 const QL_UPD_KEY='quicklearn-updated-v1', QL_UID_KEY='quicklearn-synced-uid-v1', QL_CHUNK=200000;
 let qlSyncReady=false, qlSyncUid=null, qlPushTimer=null, qlPushing=false, qlPushAgain=false, qlPushPending=false, qlPulling=false, qlLastPull=0;
@@ -1610,7 +1623,7 @@ function toggleHard(id){
 
 /* ============================== SETTINGS · HAPTICS · THEME ============================== */
 const SETTINGS_KEY = "quicklearn-settings-v1";
-let settings = (()=>{ try{ return { haptics:true, theme:"dark", reduceMotion:null, mascotAnim:true, fps120:false, ...JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}") }; }catch{ return { haptics:true, theme:"dark", reduceMotion:null, mascotAnim:true, fps120:false }; } })();
+let settings = (()=>{ try{ return { haptics:true, theme:"light", reduceMotion:null, mascotAnim:true, fps120:false, ...JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}") }; }catch{ return { haptics:true, theme:"light", reduceMotion:null, mascotAnim:true, fps120:false }; } })();
 const _osReduce = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : null;
 const motionReduced = () => settings.reduceMotion == null ? !!(_osReduce && _osReduce.matches) : !!settings.reduceMotion;
 function applyMotion(){ document.documentElement.setAttribute("data-motion", motionReduced() ? "reduced" : "full"); try{ applyMx(); }catch(_){} }
@@ -9963,7 +9976,7 @@ html[data-ui="nb"]:root body :is(.btn,.hp-qa button,.chip2,.sp,.plusbtn):active{
 <script id="ql-nb-js">
 (function(){
  var D=document.documentElement,K="ql-ui";
- function cur(){try{return localStorage.getItem(K)==="classic"?"classic":"nb"}catch(e){return"nb"}}
+ function cur(){try{var v=localStorage.getItem(K);return v===null||v==="classic"?"classic":"nb"}catch(e){return"classic"}}
  function fonts(){if(document.getElementById("ql-nb-fonts"))return;var l=document.createElement("link");l.id="ql-nb-fonts";l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&family=Caveat:wght@600;700&family=Space+Mono:wght@400;700&display=swap";document.head.appendChild(l)}
  window.setUI=function(v){try{localStorage.setItem(K,v)}catch(e){}if(v==="nb"){D.setAttribute("data-ui","nb");fonts()}else D.removeAttribute("data-ui");
   if(/^#\/settings/.test(location.hash)){try{route()}catch(e){dispatchEvent(new HashChangeEvent("hashchange"))}}};
@@ -10340,7 +10353,7 @@ var THEMES=[
 ];
 var IDS=THEMES.map(function(t){return t[0]});
 var FONTS={cartoon:"Fredoka:wght@400;500;600;700",soft:"Nunito:wght@400;600;700;800",midnight:"Space+Grotesk:wght@400;500;600;700",simple:"Inter:wght@400;500;600;700"};
-function curUI(){try{var v=localStorage.getItem("ql-ui");return IDS.indexOf(v)>-1?v:"nb"}catch(e){return "nb"}}
+function curUI(){try{var v=localStorage.getItem("ql-ui");if(v===null)return "classic";return IDS.indexOf(v)>-1?v:"nb"}catch(e){return "classic"}}
 function loadFont(v){var f=FONTS[v];if(!f||document.getElementById("ql-f-"+v))return;var l=document.createElement("link");l.id="ql-f-"+v;l.rel="stylesheet";l.href="https://fonts.googleapis.com/css2?family="+f+"&display=swap";document.head.appendChild(l)}
 function applyUI(v){var D=document.documentElement;if(v==="classic")D.removeAttribute("data-ui");else D.setAttribute("data-ui",v);loadFont(v)}
 applyUI(curUI());
