@@ -1198,7 +1198,7 @@ function qlNewUserDefaults(user){
 /* ============================== CLOUD SYNC (Firestore) ============================== */
 const QL_UPD_KEY='quicklearn-updated-v1', QL_UID_KEY='quicklearn-synced-uid-v1', QL_CHUNK=200000;
 let qlSyncReady=false, qlSyncUid=null, qlPushTimer=null, qlPushing=false, qlPushAgain=false, qlPushPending=false, qlPulling=false, qlLastPull=0;
-function qlDb(){ try{ return firebase.firestore(); }catch(_){ return null; } }
+function qlDb(){ if(window.__qlNoSync) return null; try{ return firebase.firestore(); }catch(_){ return null; } }
 function qlLocalHasData(){ try{ const d=JSON.parse(localStorage.getItem('quicklearn-data-v1')||'{}'); return ['decks','subjects','notes','cards'].some(k=>Array.isArray(d[k])&&d[k].length)||Object.keys(d.courses||{}).length>0; }catch(_){ return false; } }
 function qlSchedulePush(){ if(!qlSyncReady||!qlSyncUid) return; qlPushPending=true; clearTimeout(qlPushTimer); qlPushTimer=setTimeout(qlPush,2500); }
 async function qlPush(){
@@ -3043,12 +3043,14 @@ function openKeyModal(why){
   const has = !!getKey();
   modal(`<h2 style="font-size:1rem">🔑 Connect your free Gemini key</h2>
     <p class="muted" style="margin:.4rem 0 0">${why ? esc(why) : 'Powers the AI features. It is free, takes about a minute, and stays on this device only.'}</p>
+    <p class="muted" style="margin:.3rem 0 0;font-size:.78rem">Google requires API key holders to be 18 or older.</p>
     <ol class="qlk-steps">
       <li><span>Tap <b>Get my free key</b> and sign in with Google.</span></li>
       <li><span>Tap <b>Create API key</b>, then copy it.</span></li>
       <li><span>Come back here and tap <b>Paste</b>.</span></li>
     </ol>
-    <a class="btn btn-secondary" style="display:block;text-align:center;box-sizing:border-box;text-decoration:none;margin-bottom:.7rem" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get my free key ↗</a>
+    <a class="btn btn-secondary" style="display:block;text-align:center;box-sizing:border-box;text-decoration:none;margin-bottom:.5rem" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get my free key ↗</a>
+    <button class="btn btn-secondary" style="display:block;width:100%;margin:-.2rem 0 .7rem" onclick="qlSendKeyToParent()">Ask a parent or guardian to make the key</button>
     <div class="row" style="gap:.5rem">
       <input class="input" id="keyField" placeholder="AIza…" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(getKey())}" oninput="qlKeyCheck()" style="flex:1;min-width:0">
       <button class="btn btn-secondary" style="flex:none" onclick="qlKeyPaste()">Paste</button>
@@ -3113,6 +3115,23 @@ function qlKeySave(){
 }
 function qlKeyRemove(){ try{ localStorage.removeItem(KEY_KEY); }catch(_){} closeModal(); toast('Key removed'); }
 /* asks for the key at the moment it is first needed (delayed so it lands after any "failed" sheet has closed) */
+function qlParentMessage(){
+  let policy = ''; try{ policy = new URL('privacy.html', location.href).href; }catch(_){}
+  return 'Hi! I’m using KatchUp, a study app, and its AI features need a free Google Gemini API key. '
+    + 'Google only lets people aged 18 or older create one, so I need your help.\n\n'
+    + '1. Open https://aistudio.google.com/apikey and sign in with your Google account.\n'
+    + '2. Tap “Create API key”, then copy the key (it starts with AIza).\n'
+    + '3. Send the key to me privately and please don’t post it anywhere public.\n\n'
+    + 'Good to know: the key belongs to your Google account. With a free key, Google may use what I send to the AI to improve its products, so I’ll keep private details out of it.'
+    + (policy ? '\nKatchUp’s privacy policy: ' + policy : '');
+}
+async function qlSendKeyToParent(){
+  const text = qlParentMessage(), title = 'Help with a free Gemini key for KatchUp';
+  try{ if(navigator.share){ await navigator.share({ title, text }); return; } }
+  catch(e){ if(e && e.name === 'AbortError') return; }
+  try{ await navigator.clipboard.writeText(text); toast('Message copied. Paste it into a chat with your parent.'); return; }catch(_){}
+  window.location.href = 'mailto:?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text);
+}
 function qlAskKey(){
   setTimeout(() => {
     try{
@@ -5919,7 +5938,9 @@ window.openSettings=function(){
     nav("✏️","Buddy name",esc(data.mascot&&data.mascot.name?data.mascot.name:"Not named yet")+" · "+(data.game.coins||0)+" coins","openMascotName(false)");
   const acct=
     (quickLearnUser?'<div class="setrow"><span class="seti">🚪</span><span class="sett"><b>Account</b><small>'+esc(quickLearnUser.email||quickLearnUser.displayName||"Signed in")+'</small></span><button class="btn btn-secondary" style="flex:none" onclick="quickLearnSignOut();closeModal()">Sign out</button></div>':nav("👤","Sign in","Keep your decks and courses with your account","closeModal();openAccountModal()"))+
-    nav("🔑","AI key","Needed for AI flashcards, courses and exam lessons","closeModal();openKeyModal()");
+    nav("🔑","AI key","Needed for AI flashcards, courses and exam lessons","closeModal();openKeyModal()")+
+    nav("🔒","Privacy Policy","How KatchUp handles your data","window.open('privacy.html','_blank','noopener')")+
+    (quickLearnUser?nav("🗑️","Delete account","Permanently delete your account and data","closeModal();openDeleteAccount()"):"");
   const dataSec=
     '<div class="setrow" style="cursor:default"><span class="seti">🔄</span><span class="sett"><b>Sync</b><small id="qlSyncSub">'+qlSyncSub()+'</small></span><button id="qlSyncBtn" class="btn btn-secondary" data-nohap style="flex:none" onclick="qlSyncNow()">Sync</button></div>'+
     nav("⬇️","Export backup","Download all your decks, cards and progress","qlExport()")+
@@ -6252,7 +6273,8 @@ body{background:var(--background);background-image:none}
 (function(){
 "use strict";
 const TERMS_KEY="quicklearn-terms-accepted-v1";
-let qlAccepted=localStorage.getItem(TERMS_KEY)==="yes";
+const AGE_KEY="quicklearn-age18-v1";
+let qlAccepted=localStorage.getItem(TERMS_KEY)==="yes"&&localStorage.getItem(AGE_KEY)==="yes";
 let qlGateMode="signin";
 let qlAuthResolved=false;
 function showAuthBuffer(){
@@ -6281,7 +6303,8 @@ function renderGate(mode){
 8. <strong>Security:</strong> Keep your password private and tell us if you suspect unauthorized access.<br><br>
 9. <strong>Fair use:</strong> Do not abuse, overload, or attempt to bypass the app's security, access controls, or usage limits.<br><br>
 10. <strong>Updates:</strong> These terms may be updated. Where required, we will ask you to review and accept revised terms.<br><br>
-These terms are a practical starting point and do not replace a legally reviewed agreement or privacy policy.</div>`;
+11. <strong>Age:</strong> KatchUp is for people aged 18 or older. The AI features use your own Google Gemini API key, and Google requires the holder of an API key to be 18 or older.<br><br>
+Our <a href="privacy.html" target="_blank" rel="noopener" style="color:var(--primary)">Privacy Policy</a> explains what data KatchUp collects. You can delete your account and data at any time from Settings, or see <a href="delete-account.html" target="_blank" rel="noopener" style="color:var(--primary)">how to request deletion</a>.</div>`;
  gate.innerHTML=`<div class="gate-card">
    <div class="gate-brand">KatchUp<span style="color:var(--primary)">.</span></div>
    <div class="gate-kicker">${quickLearnUser?"ACCOUNT ACCESS":"YOUR STUDY SPACE"}</div>
@@ -6299,6 +6322,7 @@ These terms are a practical starting point and do not replace a legally reviewed
    <button class="btn btn-secondary gate-btn" onclick="qlGateGoogleSignIn()">Continue with Google</button>`}
    <div class="gate-kicker">PLEASE READ</div>${terms}
    <label class="gate-accept"><input id="qlGateAccept" type="checkbox" ${qlAccepted?"checked":""} onchange="qlGateTermsChanged(this.checked)"><span>I have read and agree to the KatchUp Terms & Conditions above, including the rules on account sharing, source-code sharing, and responsible use.</span></label>
+   <label class="gate-accept"><input id="qlGateAge" type="checkbox" ${qlAccepted?"checked":""} onchange="qlGateTermsChanged(this.checked)"><span>I confirm that I am 18 years old or older.</span></label>
    <button class="btn btn-primary gate-btn" id="qlGateContinue" ${qlAccepted?"":"disabled"} onclick="qlGateContinue()">Accept terms & continue</button>
    ${quickLearnUser?`<button class="btn btn-ghost gate-btn" onclick="quickLearnSignOut()">Sign out</button>`:""}
  </div>`;
@@ -6306,12 +6330,13 @@ These terms are a practical starting point and do not replace a legally reviewed
  const nav=document.querySelector("nav.bottom");if(nav)nav.style.display="none";
  const shell=document.querySelector(".shell");if(shell)shell.style.visibility="hidden";
 }
-window.qlGateTermsChanged=function(checked){const b=document.getElementById("qlGateContinue");if(b)b.disabled=!checked};
+window.qlGateTermsChanged=function(){const a=document.getElementById("qlGateAccept"),g=document.getElementById("qlGateAge"),b=document.getElementById("qlGateContinue");if(b)b.disabled=!(a&&a.checked&&g&&g.checked)};
 window.qlGateContinue=function(){
- const c=document.getElementById("qlGateAccept");
+ const c=document.getElementById("qlGateAccept"),g=document.getElementById("qlGateAge");
  if(!c||!c.checked){return}
+ if(!g||!g.checked){const e=document.getElementById("qlGateError");if(e)e.textContent="KatchUp is for people aged 18 or older. Please confirm your age to continue.";return}
  if(!quickLearnUser){const e=document.getElementById("qlGateError");if(e)e.textContent="Please sign in or create an account first.";return}
- localStorage.setItem(TERMS_KEY,"yes");qlAccepted=true;
+ localStorage.setItem(TERMS_KEY,"yes");localStorage.setItem(AGE_KEY,"yes");qlAccepted=true;
  const gate=document.getElementById("ql-gate");if(gate)gate.remove();
  const nav=document.querySelector("nav.bottom");if(nav)nav.style.display="";
  const shell=document.querySelector(".shell");if(shell)shell.style.visibility="";
@@ -10741,5 +10766,91 @@ html[data-ui="glass"]:root body nav.bottom .plusbtn{width:3.1rem!important;heigh
 html:root body nav.bottom .lens{display:none!important}
 html:root body nav.bottom .navitem,html:root body nav.bottom .navitem.active,html:root body nav.bottom .navitem.active .ico{background:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-color:transparent!important}
 </style>
+<script id="ql-account-delete">
+/* ============================== DELETE ACCOUNT ============================== */
+/* Google Play requires apps that create accounts to let people delete the account and its data from inside the app (and from the web: delete-account.html). */
+function openDeleteAccount(){
+  const user = (typeof quickLearnAuth !== 'undefined' && quickLearnAuth) ? quickLearnAuth.currentUser : null;
+  if(!user){ toast('Sign in first'); return; }
+  const usesPw = user.providerData.some(p => p.providerId === 'password');
+  modal(`<div class="sh"><h2>Delete your account</h2>
+    <p class="muted" style="margin:.4rem 0 .6rem">This permanently deletes:</p>
+    <ul style="margin:0 0 .8rem 1.1rem;padding:0;line-height:1.5;font-size:.9rem">
+      <li>Your KatchUp account (${esc(user.email || user.displayName || 'your account')})</li>
+      <li>Everything synced to the cloud: decks, notes, courses and progress</li>
+      <li>All KatchUp data on this device, including your saved Gemini key</li>
+    </ul>
+    <p style="font-size:.88rem;margin:0 0 .8rem"><b>This cannot be undone.</b> <a href="#" onclick="qlExport();return false" style="color:var(--primary)">Download a backup first</a></p>
+    ${usesPw
+      ? '<label class="field-label" for="qlDelPw">Your password</label><input class="input" id="qlDelPw" type="password" autocomplete="current-password" placeholder="Password">'
+      : '<p class="muted" style="font-size:.85rem;margin:0 0 .6rem">You will be asked to confirm with your Google account.</p>'}
+    <label class="field-label" for="qlDelConfirm" style="display:block;margin-top:.6rem">Type DELETE to confirm</label>
+    <input class="input" id="qlDelConfirm" autocomplete="off" autocapitalize="characters" placeholder="DELETE">
+    <p id="qlDelErr" role="alert" style="color:#e5484d;font-size:.85rem;min-height:1.1rem;margin:.5rem 0 0"></p>
+    <div class="row" style="gap:.5rem;margin-top:.6rem">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="qlDelBtn" style="flex:1" onclick="qlDeleteAccount()">Delete my account</button>
+    </div></div>`);
+}
+async function qlDeleteCloudData(uid){
+  const db = firebase.firestore();   // direct on purpose: qlDb() is switched off while deleting
+  const base = db.collection('users').doc(uid).collection('sync');
+  let refs = [];
+  try{ const snap = await base.get({ source:'server' }); refs = snap.docs.map(d => d.ref); }
+  catch(_){
+    const meta = await base.doc('meta').get({ source:'server' });
+    const n = meta.exists ? (Number(meta.data().chunks) || 0) : 0;
+    refs = [base.doc('meta')]; for(let i = 0; i < n; i++) refs.push(base.doc('chunk_' + i));
+  }
+  for(let i = 0; i < refs.length; i += 400){
+    const b = db.batch(); refs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit();
+  }
+  try{ await db.collection('users').doc(uid).delete(); }catch(_){}
+}
+async function qlWipeLocalData(){
+  try{ Object.keys(localStorage).forEach(k => { if(/^(quicklearn|ql)[-_]/i.test(k)) localStorage.removeItem(k); }); }catch(_){}
+  try{ if(window.caches) await window.caches.delete('quicklearn-jobs'); }catch(_){}
+  ['ql-paper-files', 'ql-music'].forEach(n => { try{ indexedDB.deleteDatabase(n); }catch(_){} });
+}
+async function qlDeleteAccount(){
+  const err = document.getElementById('qlDelErr'), btn = document.getElementById('qlDelBtn');
+  const say = m => { if(err) err.textContent = m || ''; };
+  const user = (typeof quickLearnAuth !== 'undefined' && quickLearnAuth) ? quickLearnAuth.currentUser : null;
+  if(!user){ say('You are signed out. Sign in first.'); return; }
+  if(((document.getElementById('qlDelConfirm') || {}).value || '').trim().toUpperCase() !== 'DELETE'){ say('Type DELETE to confirm.'); return; }
+  const usesPw = user.providerData.some(p => p.providerId === 'password');
+  const pw = (document.getElementById('qlDelPw') || {}).value || '';
+  if(usesPw && !pw){ say('Enter your password.'); return; }
+  say(''); if(btn){ btn.disabled = true; btn.textContent = 'Deleting…'; }
+  let cloudDone = false;
+  try{
+    // 1. prove it is really you (first call, so a Google popup still counts as a tap)
+    if(usesPw) await user.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, pw));
+    else await user.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider());
+    // 2. stop background sync so nothing is re-uploaded, then remove the cloud copy
+    window.__qlNoSync = true;
+    await qlDeleteCloudData(user.uid); cloudDone = true;
+    // 3. delete the account itself
+    await user.delete();
+    // 4. clear this device and restart
+    await qlWipeLocalData();
+    try{ toast('Your account and data were deleted'); }catch(_){}
+    setTimeout(() => location.reload(), 500);
+  }catch(e){
+    window.__qlNoSync = false;
+    const c = (e && e.code) || '';
+    let m;
+    if(c === 'auth/wrong-password' || c === 'auth/invalid-credential' || c === 'auth/invalid-login-credentials') m = 'That password is not correct.';
+    else if(c === 'auth/popup-closed-by-user' || c === 'auth/cancelled-popup-request') m = 'Confirmation was cancelled.';
+    else if(c === 'auth/popup-blocked') m = 'Your browser blocked the Google popup. Allow popups and try again.';
+    else if(c === 'auth/too-many-requests') m = 'Too many attempts. Wait a few minutes and try again.';
+    else if(c === 'auth/requires-recent-login') m = 'For security, sign out, sign back in, then try again straight away.';
+    else if(c === 'permission-denied' || c === 'firestore/permission-denied') m = 'Could not remove your cloud data, so nothing was deleted. Email us from the Privacy Policy page and we will do it for you.';
+    else if(cloudDone) m = 'Your cloud data was removed but the account could not be deleted yet. Check your connection and tap Delete again.';
+    else m = (typeof qlAuthMessage === 'function' ? qlAuthMessage(e) : '') || 'Something went wrong. Please try again.';
+    say(m); if(btn){ btn.disabled = false; btn.textContent = 'Delete my account'; }
+  }
+}
+</script>
 </body>
 </html>
