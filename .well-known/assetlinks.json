@@ -1,1 +1,9 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "za.co.katchup.app.twa",
+        "sha256_cert_fingerprints": ["4E:9A:99:F5:B7:B9:6A:41:E9:5B:70:91:F7:AC:AA:A1:4C:9B:F7:33:EC:3E:D6:8E:1E:18:80:61:B9:B2:C7:AC"]
+      }
+    }]
 
