@@ -68,7 +68,7 @@ self.addEventListener("fetch", e => {
   const url = new URL(req.url);
   if (url.protocol !== "http:" && url.protocol !== "https:") return;
   if (url.origin === location.origin && url.pathname.startsWith("/__job/")) return;
-  if (req.mode === "navigate" && /\/(privacy|delete-account)\.html$/.test(url.pathname)) return; // plain pages: always straight from the network
+  if (req.mode === "navigate" && (/\/(privacy|delete-account)\.html$/.test(url.pathname) || url.pathname.indexOf("/.well-known/") === 0)) return; // plain pages and verification files: always straight from the network, never the app shell
 
   if (req.mode === "navigate") { e.respondWith(handleNavigate(e)); return; }
   if (url.origin === location.origin || url.hostname === "fonts.googleapis.com") { e.respondWith(staleWhileRevalidate(e)); return; }
